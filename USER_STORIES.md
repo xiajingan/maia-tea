@@ -2,6 +2,8 @@
 
 > 演进顺序：T0 候选/检索 → T1 规则/模板建议 → T2 人工审核发送 → T3 低风险自动发送 → T4 知识增强。任何阶段先证明同一业务 reply key 不重复外发。
 
+Seed 不独立迭代：Tea Story 的 Seed 子任务只登记在 `maia-seed:CONSUMERS.yaml`，本文件不复制映射。Story 进入 `ready` 前须存在对应单边记录并固定 wheel version + SHA-256；真实回复 Test 验证的同一 digest 原样提升 release。回复策略、审批和业务去重语义不得下沉 Seed，禁止 Git/path 依赖。
+
 | ID | 用户故事 | 验收标准 | 来源 | 状态 |
 |---|---|---|---|---|
 | TEAAPP-001 | 作为会话运营人员，我希望检索授权会话和消息。 | 支持账号/时间/关键词；Own 与 Use 明示；关联实体分别鉴权。 | TEA-001 | `draft` |

@@ -6,6 +6,10 @@
 
 Tea 负责会话检索用例、候选消息过滤、ReplyPolicy 评估、上下文最小化、回复生成适配、人工审核及回执关联。它不摄取/拥有原始 Conversation/Message，不向终端直发命令，不把账号凭据或未授权消息发送给模型。
 
+### Seed 依赖契约
+
+Tea 通过正式、精确锁定的 Seed wheel 复用配置、上下文、错误/事件、通用状态原语、安全/加密/审计、可观测性及所需 Redis/OceanBase 技术 adapter。ReplyPolicy/Candidate/Draft/Approval/Submission、业务去重 key、Model/Repository/SQL/migration 留在 Tea。Tea Story 发现公共基础缺口时，在该 Story 下派生 Seed 子任务；最终 version 的 wheel 一次构建并按 SHA-256 在真实回复 Test 验证，随后将同一 digest 原样提升 release 并更新锁文件。禁止 Git/path 依赖、复制 Seed 实现或反向依赖。
+
 ## 2. 模型与流程
 
 Tea 是 ReplyPolicy、ReplyCandidate、ReplyDraft、Approval 和 ReplyOutcome 的唯一写入者；Mud 只拥有 Conversation/Message。ReplyOutcome 仅保存 Stem Task/Execution/Proof 引用、来源事件版本和消费水位，不复制或裁决执行最终状态。
