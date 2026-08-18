@@ -8,7 +8,7 @@ Tea 负责会话检索用例、候选消息过滤、ReplyPolicy 评估、上下�
 
 ### Seed 依赖契约
 
-Tea 通过正式、精确锁定的 Seed wheel 复用配置、上下文、错误/事件、通用状态原语、安全/加密/审计、可观测性及所需 Redis/OceanBase 技术 adapter。ReplyPolicy/Candidate/Draft/Approval/Submission、业务去重 key、Model/Repository/SQL/migration 留在 Tea。Tea Story 发现公共基础缺口时，在该 Story 下派生 Seed 子任务；最终 version 的 wheel 一次构建并按 SHA-256 在真实回复 Test 验证，随后将同一 digest 原样提升 release 并更新锁文件。禁止 Git/path 依赖、复制 Seed 实现或反向依赖。
+Tea 通过正式、精确锁定的 Seed wheel 复用配置、上下文、错误/事件、通用状态原语、安全/加密/审计、可观测性及所需 Redis/OceanBase 技术 adapter。ReplyPolicy/Candidate/Draft/Approval/Submission、业务去重 key、Model/Repository/SQL/migration 留在 Tea。Tea Sprint 发现公共基础缺口时，从当前 Story/Task 向 Seed 写入 `dependency` Assignment；Seed 自主规划并以 `dependency-package` Delivery 返回精确 wheel version + SHA-256 后，Tea 更新锁文件并完成真实回复 Test。禁止 `latest`、Git/path 依赖、复制 Seed 实现或反向依赖。
 
 ## 2. 模型与流程
 
