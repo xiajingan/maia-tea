@@ -42,10 +42,13 @@ deploy:
   test_mode: docker
   prod_mode: docker
 commands:
+  doc_lint: ["{harness}", doc-lint]
   frontend_lint: []
   frontend_typecheck: []
   frontend_unit: []
   e2e: []
+command_groups:
+  precommit: [architecture, doc_lint]
 management:
   control_id: maia
   control_path: ..
