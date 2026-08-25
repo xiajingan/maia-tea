@@ -2,8 +2,8 @@ version: 2
 project:
   id: maia-tea
   mode: managed
-  stack: python-backend
   deployment_owner: control
+  type: backend
 agent_runtime:
   primary: codex
   compatibility:
@@ -42,13 +42,16 @@ deploy:
   test_mode: docker
   prod_mode: docker
 commands:
-  doc_lint: ["{harness}", doc-lint]
+  doc_lint:
+  - '{harness}'
+  - doc-lint
   frontend_lint: []
   frontend_typecheck: []
   frontend_unit: []
   e2e: []
 command_groups:
-  precommit: [architecture, doc_lint]
+  precommit:
+  - doc_lint
 management:
   control_id: maia
   control_path: ..
@@ -56,3 +59,10 @@ management:
   assignment_inbox: docs/assignments/inbox
   assignment_responses: docs/assignments/responses
   deliveries_dir: docs/deliveries
+dependencies:
+  providers:
+    maia-seed:
+      orchestration: coordinated
+      path: ../maia-seed
+      package: maia-seed
+      capabilities: {}
