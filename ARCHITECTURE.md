@@ -1,5 +1,7 @@
 # Tea 架构
 
+**当前 Profile**：`simple-layered`
+
 > Tea 是可控自动回复业务应用；Mud 保存公共会话数据，Stem 执行外部发送。
 
 ## 1. 定位与边界

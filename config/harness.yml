@@ -66,3 +66,15 @@ dependencies:
       path: ../maia-seed
       package: maia-seed
       capabilities: {}
+planning:
+  minimum_bootstrap_domains: 3
+  bootstrap_completion_receipt: docs/architecture/bootstrap-completion.yml
+  project_stage: greenfield
+architecture:
+  profile: simple-layered
+observability:
+  required_assets:
+  - dashboards
+  - alerts
+  - queries
+  - runbooks
