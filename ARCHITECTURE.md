@@ -4,13 +4,15 @@
 
 > Tea 是可控自动回复业务应用；Mud 保存公共会话数据，Stem 执行外部发送。
 
+> 2026-09-30 对齐 Maia 新基线的 TS/Node.js/Fastify、TiDB/Drizzle 与 BullMQ；以下为目标设计，尚无本轮异步流程或观测验收结果。精确版本与公共约束继承 [Maia 架构](../ARCHITECTURE.md)。
+
 ## 1. 定位与边界
 
 Tea 负责会话检索用例、候选消息过滤、ReplyPolicy 评估、上下文最小化、回复生成适配、人工审核及回执关联。它不摄取/拥有原始 Conversation/Message，不向终端直发命令，不把账号凭据或未授权消息发送给模型。
 
 ### Seed 依赖契约
 
-Tea 通过正式、精确锁定的 Seed wheel 复用配置、上下文、错误/事件、通用状态原语、安全/加密/审计、可观测性及所需 Redis/OceanBase 技术 adapter。ReplyPolicy/Candidate/Draft/Approval/Submission、业务去重 key、Model/Repository/SQL/migration 留在 Tea。Tea Sprint 发现公共基础缺口时，从当前 Story/Task 向 Seed 写入 `dependency` Assignment；Seed 自主规划并以 `dependency-package` Delivery 返回精确 wheel version + SHA-256 后，Tea 更新锁文件并完成真实回复 Test。禁止 `latest`、Git/path 依赖、复制 Seed 实现或反向依赖。
+Tea 按真实需求消费 Seed 已交付的 TS/npm 技术包，锁定版本与制品摘要；缺口通过当前 Story/Task 的 dependency 协作交付，不预建通用 MQ 包。ReplyPolicy/Candidate/Draft/Approval/Submission、业务幂等、Drizzle 模型/查询/迁移与队列 processor 留在 Tea。旧 wheel 和 Redis/OceanBase adapter 描述退出当前设计，不视为可用的新 TS 制品。
 
 ## 2. 模型与流程
 
@@ -66,10 +68,38 @@ message event → candidate dedupe → policy match/conflict resolution
 
 路线：T0 检索/候选 → T1 规则与模板建议 → T2 人工审核发送 → T3 低风险自动发送 → T4 知识增强/质量评估 → T5 多渠道策略；每一步先证明无重复回复和可人工接管。
 
-## 4. 部署与观测
+### 3.4 BullMQ 异步节点
 
-Python/FastAPI 服务与异步 Worker 独立伸缩，私有 Schema 经 Alembic 管理，OCI/Helm 部署。观测覆盖候选积压、过滤原因、生成延迟、审核等待、提交/回执失败、敏感信息拦截和重复抑制。
+对应 US-004/005/014/015，按 [Maia 异步方案](../docs/architecture/async-jobs.md) 分离快速接收与耗时生成：
+
+```mermaid
+flowchart LR
+  M[Mud 消息变更 Job] --> IQ[tea-inbox Queue / Worker]
+  IQ --> C[事务写 Candidate + 来源水位 + Outbox]
+  C --> GQ[tea-generation Queue]
+  GQ --> GW[授权取数 + 有界模型调用]
+  GW --> D[版本化 Draft / 人工降级]
+  D --> A[审批与有效性校验]
+  A --> S[持久 Submission + Outbox]
+  S --> SQ[tea-submission Queue / Worker]
+  SQ --> ST[Stem Command / 未知结果对账]
+  ST --> OQ[tea-outcome Queue / 投影 Worker]
+```
+
+| 工作 | 使用与边界 |
+|---|---|
+| 接收候选 | Inbox Worker 只做校验、业务去重与持久接手；下一阶段 Outbox 同事务提交，不等待模型响应，慢模型不阻塞消息水位 |
+| 生成/重新评估 | I/O Worker 独立并发和供应商配额，固定 Candidate/策略/上下文版本及 deadline；可恢复错误有限退避，超时转人工。重复唤醒可用 deduplication；仅允许替换的同一候选重算可防抖，不能吞掉不同消息 |
+| 审核过期/计划唤醒 | delay 或 Job Scheduler 仅唤醒状态检查；到期重验草稿版本、源权限、审批、取消和降级策略，不能从 Job 直接跳过审批发送 |
+| 提交与结果投影 | 稳定 submission/idempotency key 由业务记录持有，Worker 调用 Stem；超时进入对账，后续 Job 先查询结果，不能生成新 key 重复提交。结果 Job 依来源版本更新投影 |
+| 样本评估/批量预览 | 大批样本拆为有界 Job，CPU 计算使用 sandboxed processor；各样本结果持久化，评估不改变自动发送权限 |
+
+业务幂等仍使用本章 reply key，Worker 重试不会创建第二次业务回复。QueueEvents 仅推送可补查的草稿/进度通知。观测按 [统一方案](../docs/architecture/async-jobs.md#62-opentelemetry-与三类观测信号) 关联消息、Candidate、Draft、Submission 和 Stem 引用；指标区分排队、模型调用、审核等待与回执等待，不导出上下文正文。验收验证慢模型隔离、重复/晚到生成、审批后权限撤销、提交超时对账及可关联的三类观测信号。
+
+## 4. 技术边界与观测
+
+服务采用 TS/Node.js/Fastify，私有 TiDB Schema 通过 Drizzle 管理，版本继承 Maia。观测覆盖候选积压、过滤原因、生成延迟、审核等待、提交/回执失败、敏感信息拦截和重复抑制；资源、进程、伸缩与制品配置只在 [部署设计](../docs/DEPLOYMENT.md) 维护。
 
 ## 5. 迁移
 
-迁移影响固定覆盖 Mud/旧会话模块中的策略/草稿/结果表、Sage/Iris API、Mud 消息事件、Tea 队列、Stem Command/Confirmation、Schema/Helm/Test。首个 migration manifest 必须证明源中是否存在对应数据：存在则以可重跑 Alembic/backfill 映射状态/权限，Conversation/Message 只留 Mud 引用；不存在则记录零数据基线。`maia-tea-v0.1.0` 完成消费者切流和数量/摘要/水位对账，`v0.2.0` 删除旧 API、事件消费者和表，不双写。
+涉及既有策略/草稿/结果数据时，由对应迭代技术方案确认真实源数据并设计字段、权限、状态及队列在途工作的转换与验证；遵守 Harness 数据迁移规范。Conversation/Message 始终只留 Mud 引用，架构不预设迁移版本、执行脚本或旧 Python 方案。
