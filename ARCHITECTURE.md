@@ -94,7 +94,7 @@ flowchart LR
 | 提交与结果投影 | 稳定 submission/idempotency key 由业务记录持有，Worker 调用 Stem；超时进入对账，后续 Job 先查询结果，不能生成新 key 重复提交。结果 Job 依来源版本更新投影 |
 | 样本评估/批量预览 | 大批样本拆为有界 Job，CPU 计算使用 sandboxed processor；各样本结果持久化，评估不改变自动发送权限 |
 
-业务幂等仍使用本章 reply key，Worker 重试不会创建第二次业务回复。QueueEvents 仅推送可补查的草稿/进度通知。观测按 [统一方案](../docs/architecture/async-jobs.md#62-opentelemetry-与三类观测信号) 关联消息、Candidate、Draft、Submission 和 Stem 引用；指标区分排队、模型调用、审核等待与回执等待，不导出上下文正文。验收验证慢模型隔离、重复/晚到生成、审批后权限撤销、提交超时对账及可关联的三类观测信号。
+业务幂等仍使用本章 reply key，Worker 重试不会创建第二次业务回复。QueueEvents 仅推送可补查的草稿/进度通知。观测按 [统一方案](../docs/architecture/observability.md) 关联消息、Candidate、Draft、Submission 和 Stem 引用；指标区分排队、模型调用、审核等待与回执等待，不导出上下文正文。验收验证慢模型隔离、重复/晚到生成、审批后权限撤销、提交超时对账及可关联的三类观测信号。
 
 ## 4. 技术边界与观测
 
