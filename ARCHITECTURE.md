@@ -4,7 +4,7 @@
 
 > Tea 是可控自动回复业务应用；Mud 保存公共会话数据，Stem 执行外部发送。
 
-> 2026-09-30 对齐 Maia 新基线的 TS/Node.js/Fastify、TiDB/Drizzle 与 BullMQ；以下为目标设计，尚无本轮异步流程或观测验收结果。精确版本与公共约束继承 [Maia 架构](../ARCHITECTURE.md)。
+上游：[Maia 架构](../ARCHITECTURE.md)、[技术栈与版本](../docs/architecture/technology-stack.md)、[产品需求](USER_STORIES.md)。
 
 ## 1. 定位与边界
 
@@ -12,7 +12,7 @@ Tea 负责会话检索用例、候选消息过滤、ReplyPolicy 评估、上下�
 
 ### Seed 依赖契约
 
-Tea 按真实需求消费 Seed 已交付的 TS/npm 技术包，锁定版本与制品摘要；缺口通过当前 Story/Task 的 dependency 协作交付，不预建通用 MQ 包。ReplyPolicy/Candidate/Draft/Approval/Submission、业务幂等、Drizzle 模型/查询/迁移与队列 processor 留在 Tea。旧 wheel 和 Redis/OceanBase adapter 描述退出当前设计，不视为可用的新 TS 制品。
+Tea 按真实需求消费 Seed 已交付的 TS/npm 技术包，锁定版本与制品摘要，不预建通用 MQ 包。ReplyPolicy/Candidate/Draft/Approval/Submission、业务幂等、Drizzle Schema/查询与队列 processor 留在 Tea。
 
 ## 2. 模型与流程
 
@@ -29,7 +29,7 @@ ReplyPolicy 遵循 `draft→validated→published→deprecated→archived`，发
 
 流程为：从 Mud 查询/消费消息 → 逐个校验关联实体 → 规则过滤 → 构造脱敏上下文 → 生成/模板草稿 → 策略分支/ReplyApproval → 提交 Stem Task Command → 关联只读回执。Task Command 固定 Action/Workflow 版本、输入/目标/权限候选；Stem 重验并生成权威快照与 Todo，Tea 不定义隐式发送操作或流程节点。ReplyApproval 只批准回复内容；若 Action 风险策略需要外部副作用确认，Tea 通过 Stem Confirmation API 创建并获得绑定同一目标/版本/参数的 `confirmation_id`，由 Stem 在入队事务单次消费，不能用 ReplyApproval 替代。
 
-自动回复业务唯一键为 `(tenant_id, message_id, reply_purpose)`，独立于 policy version；策略升级/事件重放只能产生新的评估记录，若该 reply key 已 submitted/succeeded 则不得再次外发，人工明确创建的新回复使用新的 purpose/command ID。每次提交先持久化稳定 submission/idempotency key，超时后向 Stem 对账，不盲重试。策略版本、上下文摘要和 Resolver 来源随结果保存。
+自动回复业务唯一键为 `(tenant_id, message_id, reply_purpose)`，独立于 policy version；策略版本变化/事件重放只能产生新的评估记录，若该 reply key 已 submitted/succeeded 则不得再次外发，人工明确创建的新回复使用新的 purpose/command ID。每次提交先持久化稳定 submission/idempotency key，超时后向 Stem 对账，不盲重试。策略版本、上下文摘要和 Resolver 来源随结果保存。
 
 ## 3. 契约与可靠性
 
@@ -66,8 +66,6 @@ message event → candidate dedupe → policy match/conflict resolution
 - 生成 Provider 强制超时、token/cost budget、供应商数据政策和内容安全；提示注入内容不能成为系统指令。
 - 消息洪峰按 tenant/account 分区和配额；慢模型不阻塞消费水位，Candidate 持久队列可恢复。
 
-路线：T0 检索/候选 → T1 规则与模板建议 → T2 人工审核发送 → T3 低风险自动发送 → T4 知识增强/质量评估 → T5 多渠道策略；每一步先证明无重复回复和可人工接管。
-
 ### 3.4 BullMQ 异步节点
 
 对应 US-004/005/014/015，按 [Maia 异步方案](../docs/architecture/async-jobs.md) 分离快速接收与耗时生成：
@@ -99,7 +97,3 @@ flowchart LR
 ## 4. 技术边界与观测
 
 服务采用 TS/Node.js/Fastify，私有 TiDB Schema 通过 Drizzle 管理，版本继承 Maia。观测覆盖候选积压、过滤原因、生成延迟、审核等待、提交/回执失败、敏感信息拦截和重复抑制；资源、进程、伸缩与制品配置只在 [部署设计](../docs/DEPLOYMENT.md) 维护。
-
-## 5. 迁移
-
-涉及既有策略/草稿/结果数据时，由对应迭代技术方案确认真实源数据并设计字段、权限、状态及队列在途工作的转换与验证；遵守 Harness 数据迁移规范。Conversation/Message 始终只留 Mud 引用，架构不预设迁移版本、执行脚本或旧 Python 方案。
