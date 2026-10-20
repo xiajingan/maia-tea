@@ -18,16 +18,23 @@ Tea 按真实需求消费 Seed 已交付的 TS/npm 技术包，锁定版本与�
 
 Tea 是 ReplyPolicy、ReplyCandidate、ReplyDraft、Approval 和 ReplyOutcome 的唯一写入者；Mud 只拥有 Conversation/Message。ReplyOutcome 仅保存 Stem Task/Execution/Proof 引用、来源事件版本和消费水位，不复制或裁决执行最终状态。
 
-Tea 是其私有聚合 AccessMetadata 的 PEP 和最终授权者：从本库读取真实 OwnerRef/Creator/User/version，经服务身份调用 Mud capability/effective-Own，再以 Seed `access-scope-kernel.v1` 合并。Message/Content 与 Stem 引用仍分别调用其所有者；Sage/Iris/模型不得传授权事实。依赖不可用或版本未知时 fail-closed，P0 不缓存授权决定。
+托管是 Account 的附属对象（[Maia §2.1.2](../USER_STORIES.md#21-权限模型)）：ReplyPolicy、Candidate、Draft、Approval、Submission、Outcome 只保存 `account_id`，不保存 Creator/Owner/使用范围。Tea 是这些聚合的 PEP：按 `account_id` 经服务身份向 Mud 取得请求主体对 Account 的 Own/Use 判定（Mud 以 Account AccessMetadata + AccessContext（直接成员关系及上级链 + 有效 `manager` 集合 + version）+ Seed `access-scope-kernel.v1` 裁决），列表查询使用 Mud 返回的可 Own / 可 Use 账号集合过滤。Tea 不读取或冗余保存成员关系与 Workspace 树路径；Message/Content 与 Stem 引用仍分别调用其所有者；Sage/Iris/模型不得传授权事实。依赖不可用或版本未知时 fail-closed，P0 不缓存授权决定。
 
-ReplyPolicy 遵循 `draft→validated→published→deprecated→archived`，发布版本不可原地修改，固定 Account、意图、Content/生成器、已发布 Action/Workflow 和审批模式（自动执行/先审后发/仅建议）。
+| 动作 | 所需权限 |
+|---|---|
+| 创建、发布、停用、降级托管策略（含人工回复后暂停托管） | 对 Account 有 Own |
+| 查看会话与消息、编辑/接受/拒绝回复建议 | 对任一参与 Account 有 Use |
+| 责任视图：全部托管结果、策略版本、内容快照，叫停待执行回复 | 对 Account 有 Own；只读，不授予对引用内容的权限 |
+| 托管运行（生成、提交 Stem） | 以 Account 的 Owner 身份：引用内容、Resource、Action/Workflow 须以 Owner 身份可使用且能力兼容；每次提交前重验，失败进入 `needs_attention` |
+
+ReplyPolicy 是 Account 的托管配置，遵循 `draft→validated→published→deprecated→archived`，发布版本不可原地修改，固定 Account、意图、Content/生成器、已发布 Action/Workflow、审批模式（自动执行/先审后发/仅建议）与人工回复后暂停托管策略。发布时以 Account Owner 身份校验全部引用。
 
 - Candidate：`discovered→filtered/eligible→drafted→closed`，CAS 版本阻止并发重复评估。
 - Draft：`drafting→pending_approval→approved/rejected/expired/superseded→submitted`；编辑产生新 version 并 supersede 旧稿。
 - ReplyApproval：`pending→approved/rejected/expired→consumed`，绑定 draft/策略/参数摘要、确认人和过期时间，单次消费。
 - Submission：`prepared→calling→succeeded/failed/outcome_unknown`，终态命令按 idempotency key 返回原结果。
 
-流程为：从 Mud 查询/消费消息 → 逐个校验关联实体 → 规则过滤 → 构造脱敏上下文 → 生成/模板草稿 → 策略分支/ReplyApproval → 提交 Stem Task Command → 关联只读回执。Task Command 固定 Action/Workflow 版本、输入/目标/权限候选；Stem 重验并生成权威快照与 Todo，Tea 不定义隐式发送操作或流程节点。ReplyApproval 只批准回复内容；若 Action 风险策略需要外部副作用确认，Tea 通过 Stem Confirmation API 创建并获得绑定同一目标/版本/参数的 `confirmation_id`，由 Stem 在入队事务单次消费，不能用 ReplyApproval 替代。
+流程为：从 Mud 查询/消费消息 → 以 Account Owner 身份逐个校验关联实体 → 规则过滤 → 构造脱敏上下文 → 生成/模板草稿 → 策略分支/ReplyApproval → 提交 Stem Task Command → 关联只读回执。Task Command 固定 Action/Workflow 版本、输入/目标，Task Owner 取 Account 的 Owner；Stem 重验并生成权威快照与 Todo，Tea 不定义隐式发送操作或流程节点。ReplyApproval 只批准回复内容；若 Action 风险策略需要外部副作用确认，Tea 通过 Stem Confirmation API 创建并获得绑定同一目标/版本/参数的 `confirmation_id`，由 Stem 在入队事务单次消费，不能用 ReplyApproval 替代。
 
 自动回复业务唯一键为 `(tenant_id, message_id, reply_purpose)`，独立于 policy version；策略版本变化/事件重放只能产生新的评估记录，若该 reply key 已 submitted/succeeded 则不得再次外发，人工明确创建的新回复使用新的 purpose/command ID。每次提交先持久化稳定 submission/idempotency key，超时后向 Stem 对账，不盲重试。策略版本、上下文摘要和 Resolver 来源随结果保存。
 
@@ -39,7 +46,7 @@ Mud API/事件是会话事实来源；生成器经窄 Provider 接口注入；St
 
 | 模块 | 核心对象 | 责任 |
 |---|---|---|
-| Inbox | MessageCursor、Candidate | 消息消费、业务去重、候选生命周期 |
+| Inbox | MessageCursor、Candidate | 消息消费、业务去重、候选生命周期、人工回复后暂停托管判定 |
 | Policy Studio | ReplyPolicy、IntentRule、Scope、ApprovalMode | 规则预览、冲突优先级、版本发布 |
 | Context | ContextBundle、Citation、Redaction | 授权取数、窗口裁剪、知识引用、脱敏 |
 | Generation | GeneratorPort、PromptVersion、DraftVersion | 模板/模型生成、结构化校验、成本预算 |
@@ -56,7 +63,7 @@ message event → candidate dedupe → policy match/conflict resolution
 → Stem confirmation when required → Task Command → outcome projection
 ```
 
-规则冲突按显式 priority、specificity、published_at 决定并记录原因；没有唯一命中时转人工，不随机选择。ContextBundle 记录每条信息的 owner/source/version/permission decision，生成后源权限撤销时禁止提交旧草稿。
+规则冲突按显式 priority、specificity、published_at 决定并记录原因；没有唯一命中时转人工，不随机选择。ContextBundle 记录每条信息的 owner/source/version/permission decision，生成后源权限撤销或 Account Owner 变更导致引用不可用时禁止提交旧草稿，进入 `needs_attention`。
 
 ### 3.3 对外契约与非功能
 
@@ -64,7 +71,7 @@ message event → candidate dedupe → policy match/conflict resolution
 - Review API：claim/edit/approve/reject，使用 draft version CAS，防两人同时审批。
 - Query API：candidate/draft/outcome/cursor freshness；消息正文仍按 Mud 权限实时读取。
 - 生成 Provider 强制超时、token/cost budget、供应商数据政策和内容安全；提示注入内容不能成为系统指令。
-- 消息洪峰按 tenant/account 分区和配额；慢模型不阻塞消费水位，Candidate 持久队列可恢复。
+- 消息洪峰按 `tenant_id`（根 Workspace）/account 分区和配额；慢模型不阻塞消费水位，Candidate 持久队列可恢复。
 
 ### 3.4 BullMQ 异步节点
 
