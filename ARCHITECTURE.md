@@ -4,7 +4,7 @@
 
 > Tea 是可控自动回复业务应用；Mud 保存公共会话数据，Stem 执行外部发送。
 
-上游：[Maia 架构](../ARCHITECTURE.md)、[技术栈与版本](../docs/architecture/technology-stack.md)、[产品需求](USER_STORIES.md)。
+上游：[Maia 架构](../ARCHITECTURE.md)、[技术栈与版本](../docs/architecture/technology-stack.md)、[产品需求](../docs/product/tea/index.md)。
 
 ## 1. 定位与边界
 
@@ -18,7 +18,7 @@ Tea 按真实需求消费 Seed 已交付的 TS/npm 技术包，锁定版本与�
 
 Tea 是 ReplyPolicy、ReplyCandidate、ReplyDraft、Approval 和 ReplyOutcome 的唯一写入者；Mud 只拥有 Conversation/Message。ReplyOutcome 仅保存 Stem Task/Execution/Proof 引用、来源事件版本和消费水位，不复制或裁决执行最终状态。
 
-托管是 Account 的附属对象（[Maia §2.1.2](../USER_STORIES.md#21-权限模型)）：ReplyPolicy、Candidate、Draft、Approval、Submission、Outcome 只保存 `account_id`，不保存 Creator/Owner/使用范围。Tea 是这些聚合的 PEP：按 `account_id` 经服务身份向 Mud 取得请求主体对 Account 的 Own/Use 判定（Mud 以 Account AccessMetadata + AccessContext（直接成员关系及上级链 + 有效 `manager` 集合 + version）+ Seed `access-scope-kernel.v1` 裁决），列表查询使用 Mud 返回的可 Own / 可 Use 账号集合过滤。Tea 不读取或冗余保存成员关系与 Workspace 树路径；Message/Content 与 Stem 引用仍分别调用其所有者；Sage/Iris/模型不得传授权事实。依赖不可用或版本未知时 fail-closed，P0 不缓存授权决定。
+托管是 Account 的附属对象（[Maia §2.1.2](../docs/product/constraints/permission-model.md#21-权限模型)）：ReplyPolicy、Candidate、Draft、Approval、Submission、Outcome 只保存 `account_id`，不保存 Creator/Owner/使用范围。Tea 是这些聚合的 PEP：按 `account_id` 经服务身份向 Mud 取得请求主体对 Account 的 Own/Use 判定（Mud 以 Account AccessMetadata + AccessContext（直接成员关系及上级链 + 有效 `manager` 集合 + version）+ Seed `access-scope-kernel.v1` 裁决），列表查询使用 Mud 返回的可 Own / 可 Use 账号集合过滤。Tea 不读取或冗余保存成员关系与 Workspace 树路径；Message/Content 与 Stem 引用仍分别调用其所有者；Sage/Iris/模型不得传授权事实。依赖不可用或版本未知时 fail-closed，P0 不缓存授权决定。
 
 | 动作 | 所需权限 |
 |---|---|
@@ -75,7 +75,7 @@ message event → candidate dedupe → policy match/conflict resolution
 
 ### 3.4 BullMQ 异步节点
 
-对应 US-004/005/014/015，按 [Maia 异步方案](../docs/architecture/async-jobs.md) 分离快速接收与耗时生成：
+对应 TEA-US-004/005/014/015，按 [Maia 异步方案](../docs/architecture/async-jobs.md) 分离快速接收与耗时生成：
 
 ```mermaid
 flowchart LR
